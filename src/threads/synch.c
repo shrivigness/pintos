@@ -173,10 +173,10 @@ sema_test_helper (void *sema_)
    onerous, it's a good sign that a semaphore should be used,
    instead of a lock. */
 void
-lock_init (struct lock *lock)
+  lock_init (struct lock *lock)
 {
   ASSERT (lock != NULL);
-
+ // printf("sumantra");
   lock->holder = NULL;
   sema_init (&lock->semaphore, 1);
 }

@@ -200,7 +200,12 @@ thread_create (const char *name, int priority,
 
   /* Add to run queue. */
   thread_unblock (t);
-
+  //P1_1 
+  //num intr_level old_level;
+  //old_level = intr_disable ();
+  if(thread_current ()!= idle_thread && t->priority > thread_current ()->priority){
+      thread_yield();
+  }
   return tid;
 }
 
@@ -237,10 +242,25 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_push_back (&ready_list, &t->elem);
+  //P1_1
+  //list_push_back (&ready_list, &t->elem);
+  list_insert_ordered (&ready_list, &t->elem,(list_less_func *) &priority_comparator,NULL);
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
+
+//P1_1
+bool priority_comparator(struct list_elem *first, struct list_elem *second, void *aux)
+{
+  struct thread *t1 = list_entry (first, struct thread, elem);  //find this list element a
+  struct thread *t2 = list_entry (second, struct thread, elem);  //find this list element b 
+  if(t1->priority > t2->priority)
+    return true;
+  else return false;
+}
+
+
+
 
 /* Returns the name of the running thread. */
 const char *
@@ -307,8 +327,10 @@ thread_yield (void)
   ASSERT (!intr_context ());
 
   old_level = intr_disable ();
+  //P1_1
   if (cur != idle_thread) 
-    list_push_back (&ready_list, &cur->elem);
+    list_insert_ordered (&ready_list, &cur->elem,(list_less_func *) &priority_comparator,NULL);
+    //list_push_back (&ready_list, &cur->elem);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -331,11 +353,22 @@ thread_foreach (thread_action_func *func, void *aux)
     }
 }
 
-/* Sets the current thread's priority to NEW_PRIORITY. */
+/* Sets the current thread's priority to NEW_PRIORITY. and preempts the current running thread */
 void
 thread_set_priority (int new_priority) 
 {
+  //P1_1
+  enum intr_level old_level;
+  old_level=intr_disable();
   thread_current ()->priority = new_priority;
+  if(!list_empty(&ready_list))
+  {
+    struct thread *front = list_entry (list_front(&ready_list), struct thread, elem);
+    if(front->priority > thread_current ()->priority)
+      thread_yield();
+  }
+  
+  intr_set_level(old_level);
 }
 
 /* Returns the current thread's priority. */
@@ -539,6 +572,7 @@ thread_schedule_tail (struct thread *prev)
     {
       ASSERT (prev != cur);
       palloc_free_page (prev);
+
     }
 }
 
