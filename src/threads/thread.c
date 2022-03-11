@@ -197,7 +197,9 @@ thread_create (const char *name, int priority,
   sf = alloc_frame (t, sizeof *sf);
   sf->eip = switch_entry;
   sf->ebp = 0;
-
+  /*Shri*/
+  /*Set the nice value to Zero Initially*/
+  t->nice = 0;
   /* Add to run queue. */
   thread_unblock (t);
   //P1_1 
@@ -357,6 +359,9 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
+  /*Shri*/
+  if(thread_mlfqs)
+    return;
   //P1_1
   enum intr_level old_level;
   old_level=intr_disable();
@@ -380,17 +385,18 @@ thread_get_priority (void)
 
 /* Sets the current thread's nice value to NICE. */
 void
-thread_set_nice (int nice UNUSED) 
+thread_set_nice (int nice) 
 {
-  /* Not yet implemented. */
+  /* Shri */
+  thread_current ()->nice = nice;
 }
 
 /* Returns the current thread's nice value. */
 int
 thread_get_nice (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  /* Shri */
+  return thread_current ()->nice;
 }
 
 /* Returns 100 times the system load average. */
