@@ -84,6 +84,9 @@ static tid_t allocate_tid (void);
 
    It is not safe to call thread_current() until this function
    finishes. */
+
+/*Shri*/
+int load_avg;
 void
 thread_init (void) 
 {
@@ -109,10 +112,10 @@ thread_start (void)
   struct semaphore idle_started;
   sema_init (&idle_started, 0);
   thread_create ("idle", PRI_MIN, idle, &idle_started);
-
+  /*Shri - Initialize the load_avg to 0*/
+  load_avg = 0;
   /* Start preemptive thread scheduling. */
   intr_enable ();
-
   /* Wait for the idle thread to initialize idle_thread. */
   sema_down (&idle_started);
 }
@@ -123,7 +126,6 @@ void
 thread_tick (void) 
 {
   struct thread *t = thread_current ();
-
   /* Update statistics. */
   if (t == idle_thread)
     idle_ticks++;
@@ -137,6 +139,36 @@ thread_tick (void)
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
     intr_yield_on_return ();
+  
+  /*Shri*/
+  if(thread_mlfqs)
+  {
+    /*Calculating load average
+      load_avg(t) = (59 / 60) * load_avg(t - 1) + (1 / 60) * ready_threads    
+    */
+    load_avg = (int)(59/60)*load_avg + (1/60)*(list_size(&ready_list));
+    /* Shri 
+    recent_cpu(0) = 0 for initial thread, parent thread’s value for other threads.
+    At each timer interrupt, recent_cpu incremented by 1 for the running thread.
+    And once per second:
+    a = (2 * load_avg) / (2 * load_avg + 1)
+    for each thread: recent_cpu(t) = a * recent_cpu(t - 1) + nice
+    */
+    thread_current ()->recent_cpu = (int)(2*thread_get_load_avg ()/(2*thread_get_load_avg ()+1)+thread_get_nice ()) * thread_current ()->recent_cpu + thread_get_nice ();
+    if(timer_ticks() % 4 == 0)
+    {
+    /*
+    Recalculate the Priority every 4 clock ticks
+    */
+      struct list_elem *cur;
+      for (cur = list_begin (&all_list); cur != list_end (&all_list);cur = list_next (cur))
+      {
+        struct thread *cur_thread = list_entry (cur, struct thread, allelem);
+        int new_priority = PRI_MAX - (int)(cur_thread->recent_cpu,4)/(cur_thread->nice * 2);
+        thread_set_priority(new_priority);
+      }
+    }   
+  }
 }
 
 /* Prints thread statistics. */
@@ -198,8 +230,9 @@ thread_create (const char *name, int priority,
   sf->eip = switch_entry;
   sf->ebp = 0;
   /*Shri*/
-  /*Set the nice value to Zero Initially*/
+  /*Set the nice and recent_cpu values to Zero Initially*/
   t->nice = 0;
+  t->recent_cpu = 0;
   /* Add to run queue. */
   thread_unblock (t);
   //P1_1 
@@ -359,9 +392,10 @@ thread_foreach (thread_action_func *func, void *aux)
 void
 thread_set_priority (int new_priority) 
 {
-  /*Shri*/
+  /*Shri
   if(thread_mlfqs)
     return;
+  */
   //P1_1
   enum intr_level old_level;
   old_level=intr_disable();
@@ -403,16 +437,15 @@ thread_get_nice (void)
 int
 thread_get_load_avg (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  return load_avg;
 }
 
 /* Returns 100 times the current thread's recent_cpu value. */
 int
 thread_get_recent_cpu (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  /* Shri*/
+  return thread_current ()->recent_cpu;
 }
 
 /* Idle thread.  Executes when no other thread is ready to run.
